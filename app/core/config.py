@@ -1,8 +1,8 @@
 from contextlib import contextmanager
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (BaseSettings, SettingsConfigDict)
 from sqlalchemy import create_engine
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.orm import (scoped_session, sessionmaker)
 
 
 class Settings(BaseSettings):
@@ -17,6 +17,10 @@ class BlogPostSettings(Settings):
     secret_key: str = None
     algorithm: str = None
     access_token_expire_minutes: int = None
+    redis_host: str = None
+    redis_port: int = None
+    redis_db: int = 0
+    cache_expiry: int = 300
 
     model_config = SettingsConfigDict(env_file='.env')
 

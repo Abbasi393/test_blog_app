@@ -1,13 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import (APIRouter, Depends, HTTPException)
 from starlette import status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_session
 from app.core.security import get_current_user
-from app.schemas.posts_schema import (PostModel, PostCreateModel, PostUpdateModel)
-from app.models.posts_models import Post
-from app.models.user_models import User
+from app.core.cache import redis_cache_result, invalidate_cache
 
+from app.schemas.posts_schema import (PostModel, PostCreateModel, PostUpdateModel)
+from app.models.user_models import User
 from app.services.post_service import PostService
 
 posts_router = APIRouter(prefix="/blog/posts", tags=["Blog Posts"])
@@ -19,11 +19,12 @@ posts_router = APIRouter(prefix="/blog/posts", tags=["Blog Posts"])
     status_code=status.HTTP_200_OK,
     response_model=list[PostModel]
 )
+@redis_cache_result
 def list_posts(
         session: Session = Depends(get_session),
         ums_user: User = Depends(get_current_user),
 ):
-    return PostService.get_all_blogs(session, ums_user)
+    return PostService.get_all_blogs(session, ums_user.id)
 
 
 @posts_router.post(
@@ -37,7 +38,8 @@ def create_post(
         session: Session = Depends(get_session),
         ums_user: User = Depends(get_current_user),
 ):
-    blog_post = PostService.create_blog_post(session, ums_user, post)
+    blog_post = PostService.create_blog_post(session, ums_user.id, post)
+    invalidate_cache(ums_user.id)
     return blog_post
 
 
@@ -47,6 +49,7 @@ def create_post(
     status_code=status.HTTP_200_OK,
     response_model=PostModel
 )
+@redis_cache_result
 def read_post(
         post_id: int,
         session: Session = Depends(get_session),
@@ -66,15 +69,12 @@ def read_post(
 )
 def delete_post(
         post_id: int,
-        db: Session = Depends(get_session)
+        session: Session = Depends(get_session),
+        ums_user: User = Depends(get_current_user),
 ):
-    post = db.query(Post).filter(Post.id == post_id).first()
-    if not post:
-        raise HTTPException(status_code=404, detail="Post not found")
-
-    db.delete(post)
-    db.commit()
-    return post
+    blog_post = PostService.delete_blog_post(session, ums_user.id, post_id)
+    invalidate_cache(ums_user.id)
+    return blog_post
 
 
 @posts_router.put(
@@ -89,5 +89,6 @@ def update_post(
         session: Session = Depends(get_session),
         ums_user: User = Depends(get_current_user),
 ):
-    blog_post = PostService.update_blog_post(session, ums_user, post_id, post_update)
+    blog_post = PostService.update_blog_post(session, ums_user.id, post_id, post_update)
+    invalidate_cache(ums_user.id)
     return blog_post
